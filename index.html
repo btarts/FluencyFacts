@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interactive Fact Fluency Game with Proficiency Matrix</title>
+  <style>
+    body {
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      background: linear-gradient(to right, #fdfbfb, #ebedee);
+      text-align: center;
+      padding: 2rem;
+    }
+    #game-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    }
+    input[type="number"], input[type="text"] {
+      font-size: 1.5rem;
+      padding: 0.5rem;
+      width: 220px;
+      text-align: center;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      font-size: 1.2rem;
+      padding: 0.6rem 1.2rem;
+      margin-top: 1rem;
+      margin-right: 0.5rem;
+      border: none;
+      border-radius: 6px;
+      background-color: #4CAF50;
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #score, #timer, #cumulative {
+      font-size: 1.3rem;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    #feedback {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      height: 1.5rem;
+      opacity: 1;
+      transition: opacity 1s ease;
+    }
+    /* Visual aid styling */
+    #visualAid {
+      margin: 1rem auto;
+      padding: 0.8rem;
+      background: #e8f0fe;
+      border: 1px solid #b3d1ff;
+      border-radius: 6px;
+      max-width: 500px;
+      font-size: 1.1rem;
+    }
+    /* Teacher report (proficiency matrix) styling */
+    #teacher-report {
+      margin-top: 2rem;
+      text-align: center;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #teacher-report h2 {
+      text-align: center;
+    }
+    #teacher-report table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    #teacher-report th, #teacher-report td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+      vertical-align: top;
+    }
+    #teacher-report th {
+      background-color: #f0f0f0;
+    }
+    .check {
+      font-size: 1.5rem;
+      color: green;
+    }
+    /* Teacher customization */
+    #customization {
+      margin: 1rem auto;
+      max-width: 400px;
+      text-align: left;
+    }
+    #customization label {
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <h1>Interactive Fact Fluency Game</h1>
+    <div>
+      <input type="text" id="studentName" placeholder="Enter your name" />
+    </div>
+    <div id="cumulative">Total Score: 0</div>
+    <div id="timer">Time: 60 seconds</div>
+    <div id="score">Session Score: 0</div>
+    <div id="question">Press Start to begin</div>
+    <input type="number" id="answer" placeholder="Your answer" disabled />
+    <div id="visualAid"></div>
+    <br>
+    <button id="start-btn">Start Game</button>
+    <button id="report-btn">Generate Teacher Report</button>
+    <div id="feedback"></div>
+    
+    <!-- Teacher customization: Adjust mastery threshold (for reporting, if desired) -->
+    <div id="customization">
+      <label for="masteryThreshold">Mastery Threshold (correct answers needed per standard): </label>
+      <input type="number" id="masteryThreshold" value="3" min="1" style="width: 50px;">
+    </div>
+    
+    <div id="teacher-report"></div>
+  </div>
+
+  <script>
+    // Global game variables
+    let score = 0;           // Session score
+    let cumulativeScore = 0; // Total score loaded from storage
+    let timeLeft = 60;
+    let timerInterval;
+    let currentAnswer, currentStandard;
+
+    // Performance object stores attempts, correct answers, and explanations for each standard.
+    // Keys: "Fluency20", "BreakApart", "Compensation", "Contextual"
+    let performance = {
+      Fluency20: { attempts: 0, correct: 0, explanations: [] },
+      BreakApart: { attempts: 0, correct: 0, explanations: [] },
+      Compensation: { attempts: 0, correct: 0, explanations: [] },
+      Contextual: { attempts: 0, correct: 0, explanations: [] }
+    };
+
+    // Standard names (for teacher report)
+    const standardNames = {
+      Fluency20: "Continue to develop fact fluency within 20",
+      BreakApart: "Break apart 2-digit numbers to add",
+      Compensation: "Use compensation to add 2-digit numbers",
+      Contextual: "Solve contextual problems using strategies and equations"
+    };
+
+    // DOM Elements
+    const studentNameInput = document.getElementById("studentName");
+    const cumulativeElement = document.getElementById("cumulative");
+    const timerElement = document.getElementById("timer");
+    const scoreElement = document.getElementById("score");
+    const questionElement = document.getElementById("question");
+    const answerInput = document.getElementById("answer");
+    const startButton = document.getElementById("start-btn");
+    const reportButton = document.getElementById("report-btn");
+    const feedbackElement = document.getElementById("feedback");
+    const visualAidDiv = document.getElementById("visualAid");
+    const teacherReportDiv = document.getElementById("teacher-report");
+    const masteryThresholdInput = document.getElementById("masteryThreshold");
+
+    // Local Storage functions
+    function storageKey(name) {
+      return "factFluency_" + name.trim().toLowerCase();
+    }
+
+    function loadStudentData(studentName) {
+      const key = storageKey(studentName);
+      const storedData = localStorage.getItem(key);
+      if (storedData) {
+        const dataObj = JSON.parse(storedData);
+        performance = dataObj.performance || {
+          Fluency20: { attempts: 0, correct: 0, explanations: [] },
+          BreakApart: { attempts: 0, correct: 0, explanations: [] },
+          Compensation: { attempts: 0, correct: 0, explanations: [] },
+          Contextual: { attempts: 0, correct: 0, explanations: [] }
+        };
+        cumulativeScore = dataObj.cumulativeScore || 0;
+      } else {
+        performance = {
+          Fluency20: { attempts: 0, correct: 0, explanations: [] },
+          BreakApart: { attempts: 0, correct: 0, explanations: [] },
+          Compensation: { attempts: 0, correct: 0, explanations: [] },
+          Contextual: { attempts: 0, correct: 0, explanations: [] }
+        };
+        cumulativeScore = 0;
+      }
+      cumulativeElement.textContent = "Total Score: " + cumulativeScore;
+    }
+
+    function saveStudentData(studentName) {
+      const key = storageKey(studentName);
+      const dataObj = {
+        performance: performance,
+        cumulativeScore: cumulativeScore
+      };
+      localStorage.setItem(key, JSON.stringify(dataObj));
+    }
+
+    // Update visual aid based on current standard.
+    function updateVisualAid() {
+      if (currentStandard === "BreakApart") {
+        visualAidDiv.innerHTML = "Hint: Think of each number in terms of tens and ones. For example, 47 can be seen as 40 + 7.";
+      } else if (currentStandard === "Compensation") {
+        visualAidDiv.innerHTML = "Hint: Visualize a number line. Round one number to a nearby multiple of 10 and adjust the answer accordingly.";
+      } else if (currentStandard === "Contextual") {
+        visualAidDiv.innerHTML = "Hint: Read the problem carefully and imagine the scenario to help set up the addition.";
+      } else {
+        visualAidDiv.innerHTML = "";
+      }
+    }
+
+    // Adaptive difficulty: adjust parameters based on performance.
+    function adaptiveParameters(standard) {
+      // For BreakApart: if more than 5 correct answers, use larger numbers.
+      if (standard === "BreakApart" && performance.BreakApart.correct > 5) {
+        return { min: 20, max: 99 };
+      }
+      // For Compensation: if more than 5 correct, allow a wider range for the second number.
+      if (standard === "Compensation" && performance.Compensation.correct > 5) {
+        return { secondOptions: [8, 9, 11, 12] };
+      }
+      return null;
+    }
+
+    // Generate a question based on a randomly chosen standard.
+    function generateQuestion() {
+      const type = Math.floor(Math.random() * 4);
+      switch (type) {
+        case 0: // Standard 1: Fact fluency within 20.
+          currentStandard = "Fluency20";
+          let a, b, sum;
+          do {
+            a = Math.floor(Math.random() * 10) + 1;
+            b = Math.floor(Math.random() * 10) + 1;
+            sum = a + b;
+          } while (sum > 20);
+          currentAnswer = sum;
+          questionElement.textContent = "What is " + a + " + " + b + "?";
+          break;
+        case 1: // Standard 2: Break apart 2-digit numbers.
+          currentStandard = "BreakApart";
+          let params = adaptiveParameters("BreakApart");
+          let min = params ? params.min : 10;
+          let max = params ? params.max : 89;
+          let num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+          let num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+          currentAnswer = num1 + num2;
+          questionElement.textContent = "Add " + num1 + " + " + num2 + " by breaking apart the numbers.";
+          break;
+        case 2: // Standard 3: Use compensation.
+          currentStandard = "Compensation";
+          let first = Math.floor(Math.random() * 80) + 10;
+          let options = adaptiveParameters("Compensation");
+          let second = options ? options.secondOptions[Math.floor(Math.random() * options.secondOptions.length)]
+                               : ((Math.random() < 0.5) ? 9 : 11);
+          currentAnswer = first + second;
+          questionElement.textContent = "Add " + first + " + " + second + " using compensation.";
+          break;
+        case 3: // Standard 4: Contextual problem.
+          currentStandard = "Contextual";
+          let x = Math.floor(Math.random() * 80) + 10;
+          let y = Math.floor(Math.random() * 80) + 10;
+          currentAnswer = x + y;
+          questionElement.textContent = "At her birthday party, Sarah had " + x + " stickers and received " + y + " more. How many stickers does she have now?";
+          break;
+      }
+      updateVisualAid();
+    }
+
+    // Timer update function.
+    function updateTimer() {
+      timeLeft--;
+      timerElement.textContent = "Time: " + timeLeft + " seconds";
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        endGame();
+      }
+    }
+
+    // End game function.
+    function endGame() {
+      answerInput.disabled = true;
+      startButton.disabled = false;
+      questionElement.textContent = "Game Over!";
+      feedbackElement.textContent = "Session Score: " + score + ".";
+      cumulativeScore += score;
+      cumulativeElement.textContent = "Total Score: " + cumulativeScore;
+      saveStudentData(studentNameInput.value);
+    }
+
+    // Start game function.
+    function startGame() {
+      const studentName = studentNameInput.value.trim();
+      if (!studentName) {
+        alert("Please enter your name to track your progress.");
+        return;
+      }
+      loadStudentData(studentName);
+      score = 0;
+      timeLeft = 60;
+      scoreElement.textContent = "Session Score: " + score;
+      timerElement.textContent = "Time: " + timeLeft + " seconds";
+      feedbackElement.textContent = "";
+      feedbackElement.style.opacity = 1;
+      answerInput.disabled = false;
+      answerInput.value = "";
+      answerInput.focus();
+      generateQuestion();
+      startButton.disabled = true;
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    // Fade out feedback after a delay.
+    function fadeFeedback() {
+      setTimeout(() => {
+        feedbackElement.style.opacity = 0;
+      }, 1500);
+    }
+
+    // Handle answer input.
+    answerInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        const userAnswer = parseInt(answerInput.value, 10);
+        performance[currentStandard].attempts++;
+        if (userAnswer === currentAnswer) {
+          feedbackElement.textContent = "Correct!";
+          score++;
+          scoreElement.textContent = "Session Score: " + score;
+          performance[currentStandard].correct++;
+        } else {
+          feedbackElement.textContent = "Incorrect. The correct answer was " + currentAnswer + ".";
+          let explanation = prompt("Please explain your thinking:");
+          if (explanation && explanation.trim() !== "") {
+            performance[currentStandard].explanations.push(explanation.trim());
+          }
+        }
+        answerInput.value = "";
+        saveStudentData(studentNameInput.value);
+        generateQuestion();
+        fadeFeedback();
+      }
+    });
+
+    // Generate the teacher report as a proficiency matrix.
+    function generateReport() {
+      const levels = ["No Data", "Minimally proficient", "Partial proficiency", "Proficient"];
+      const threshold = parseInt(masteryThresholdInput.value);
+      let reportHTML = "<h2>Teacher Report</h2>";
+      reportHTML += "<p><strong>Standards:</strong><br>";
+      reportHTML += "• " + standardNames.Fluency20 + "<br>";
+      reportHTML += "• " + standardNames.BreakApart + "<br>";
+      reportHTML += "• " + standardNames.Compensation + "<br>";
+      reportHTML += "• " + standardNames.Contextual + "<br></p>";
+      reportHTML += "<p><strong>Proficiency Scale:</strong> No Data, Minimally proficient, Partial proficiency, Proficient</p>";
+      
+      reportHTML += "<table><tr><th>Standard</th>";
+      levels.forEach(function(level) {
+        reportHTML += "<th>" + level + "</th>";
+      });
+      reportHTML += "<th>Student Explanation(s)</th></tr>";
+      
+      for (let key in performance) {
+        let attempts = performance[key].attempts;
+        let correct = performance[key].correct;
+        let profLevel = "No Data";
+        if (attempts > 0) {
+          let ratio = correct / attempts;
+          if (ratio < 0.33) {
+            profLevel = "Minimally proficient";
+          } else if (ratio < 0.66) {
+            profLevel = "Partial proficiency";
+          } else {
+            profLevel = "Proficient";
+          }
+        }
+        reportHTML += "<tr><td>" + standardNames[key] + "</td>";
+        levels.forEach(function(level) {
+          if (level === profLevel) {
+            reportHTML += "<td class='check'>&#10003;</td>";
+          } else {
+            reportHTML += "<td></td>";
+          }
+        });
+        let explanationText = "";
+        if (performance[key].explanations.length > 0) {
+          explanationText = "<ul>";
+          performance[key].explanations.forEach(function(exp) {
+            explanationText += "<li>" + exp + "</li>";
+          });
+          explanationText += "</ul>";
+        }
+        reportHTML += "<td>" + explanationText + "</td></tr>";
+      }
+      reportHTML += "</table>";
+      teacherReportDiv.innerHTML = reportHTML;
+    }
+
+    // Event listeners.
+    startButton.addEventListener("click", startGame);
+    reportButton.addEventListener("click", generateReport);
+  </script>
+</body>
+</html>
+
