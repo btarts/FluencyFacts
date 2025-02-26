@@ -98,6 +98,9 @@
     let timerInterval;
     let currentAnswer, currentStandard;
 
+    // Define a fluency threshold (e.g., 80% correct required for Fluency20)
+    const FLUENCY_THRESHOLD = 0.8;
+
     // Performance object stores attempts, correct answers, and explanations for each standard.
     // Keys:
     // "Fluency20", "BreakApart", "Compensation", "Contextual"
@@ -226,6 +229,17 @@
       feedbackElement.textContent = "Session Score: " + score + ".";
       cumulativeScore += score;
       cumulativeElement.textContent = "Total Score: " + cumulativeScore;
+      
+      // Check the fluency threshold for Fluency20
+      if (performance["Fluency20"].attempts > 0) {
+        let ratio = performance["Fluency20"].correct / performance["Fluency20"].attempts;
+        if (ratio < FLUENCY_THRESHOLD) {
+          alert("Your Fluency20 accuracy is " + Math.round(ratio * 100) +
+                "%, which is below the " + (FLUENCY_THRESHOLD * 100) +
+                "% threshold. Consider extra practice for fact fluency.");
+        }
+      }
+      
       saveStudentData(studentNameInput.value);
     }
 
@@ -295,21 +309,33 @@
       levels.forEach(function(level) {
         reportHTML += "<th>" + level + "</th>";
       });
-      reportHTML += "<th>Student Explanation(s)</th></tr>";
+      reportHTML += "<th>Student Explanation(s)</th><th>Fluency Threshold</th></tr>";
 
       // For each standard, determine proficiency and mark the corresponding column.
       for (let key in performance) {
         let attempts = performance[key].attempts;
         let correct = performance[key].correct;
         let profLevel = "No Data";
+        let fluencyNote = "";
         if (attempts > 0) {
           let ratio = correct / attempts;
-          if (ratio < 0.33) {
-            profLevel = "Minimally proficient";
-          } else if (ratio < 0.66) {
-            profLevel = "Partial proficiency";
+          // For the Fluency20 standard, use the FLUENCY_THRESHOLD
+          if (key === "Fluency20") {
+            if (ratio < FLUENCY_THRESHOLD) {
+              profLevel = "Partial proficiency";
+              fluencyNote = "Below Threshold (" + Math.round(ratio * 100) + "%)";
+            } else {
+              profLevel = "Proficient";
+              fluencyNote = "Met Threshold (" + Math.round(ratio * 100) + "%)";
+            }
           } else {
-            profLevel = "Proficient";
+            if (ratio < 0.33) {
+              profLevel = "Minimally proficient";
+            } else if (ratio < 0.66) {
+              profLevel = "Partial proficiency";
+            } else {
+              profLevel = "Proficient";
+            }
           }
         }
         reportHTML += "<tr><td>" + standardNames[key] + "</td>";
@@ -329,7 +355,9 @@
           });
           explanationText += "</ul>";
         }
-        reportHTML += "<td>" + explanationText + "</td></tr>";
+        // For Fluency20, add the threshold note; otherwise leave blank.
+        let thresholdColumn = (key === "Fluency20") ? fluencyNote : "";
+        reportHTML += "<td>" + explanationText + "</td><td>" + thresholdColumn + "</td></tr>";
       }
       reportHTML += "</table>";
       teacherReportDiv.innerHTML = reportHTML;
