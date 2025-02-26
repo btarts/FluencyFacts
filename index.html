@@ -101,9 +101,35 @@
     // Define a fluency threshold (e.g., 80% correct required for Fluency20)
     const FLUENCY_THRESHOLD = 0.8;
 
+    // Replace with your actual deployed Google Apps Script web app URL.
+    const googleScriptUrl = "1I5v_GVoy7B0TymW2-g-DKxMw776cd-eJmnMX51K9xiY";
+
+    // Function to send data to Google Sheet via the Apps Script web app.
+    function sendDataToGoogleSheet(studentName, sessionScore, cumulativeScore) {
+      const data = {
+        studentName: studentName,
+        sessionScore: sessionScore,
+        cumulativeScore: cumulativeScore,
+        timestamp: new Date().toISOString()
+      };
+
+      fetch(googleScriptUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+      })
+      .then(response => response.json())
+      .then(result => {
+        console.log("Data sent successfully:", result);
+      })
+      .catch(error => {
+        console.error("Error sending data:", error);
+      });
+    }
+
     // Performance object stores attempts, correct answers, and explanations for each standard.
-    // Keys:
-    // "Fluency20", "BreakApart", "Compensation", "Contextual"
     let performance = {
       Fluency20: { attempts: 0, correct: 0, explanations: [] },
       BreakApart: { attempts: 0, correct: 0, explanations: [] },
@@ -230,7 +256,7 @@
       cumulativeScore += score;
       cumulativeElement.textContent = "Total Score: " + cumulativeScore;
       
-      // Check the fluency threshold for Fluency20
+      // Check the fluency threshold for Fluency20.
       if (performance["Fluency20"].attempts > 0) {
         let ratio = performance["Fluency20"].correct / performance["Fluency20"].attempts;
         if (ratio < FLUENCY_THRESHOLD) {
@@ -240,7 +266,9 @@
         }
       }
       
+      // Save data locally and send to Google Sheet.
       saveStudentData(studentNameInput.value);
+      sendDataToGoogleSheet(studentNameInput.value, score, cumulativeScore);
     }
 
     // Start game function.
@@ -304,7 +332,7 @@
       reportHTML += "• Solve contextual problems using strategies and equations<br></p>";
       reportHTML += "<p><strong>Proficiency Scale:</strong> No Data, Minimally proficient, Partial proficiency, Proficient</p>";
       
-      // Build matrix header with an extra column for explanations.
+      // Build matrix header with an extra column for explanations and the fluency threshold.
       reportHTML += "<table><tr><th>Standard</th>";
       levels.forEach(function(level) {
         reportHTML += "<th>" + level + "</th>";
@@ -319,7 +347,7 @@
         let fluencyNote = "";
         if (attempts > 0) {
           let ratio = correct / attempts;
-          // For the Fluency20 standard, use the FLUENCY_THRESHOLD
+          // For the Fluency20 standard, use the FLUENCY_THRESHOLD.
           if (key === "Fluency20") {
             if (ratio < FLUENCY_THRESHOLD) {
               profLevel = "Partial proficiency";
