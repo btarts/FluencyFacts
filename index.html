@@ -85,6 +85,8 @@
     <br>
     <button id="start-btn">Start Game</button>
     <button id="report-btn">Generate Teacher Report</button>
+    <!-- New Download CSV button for teachers -->
+    <button id="download-csv-btn">Download CSV</button>
     <div id="feedback"></div>
     
     <div id="teacher-report"></div>
@@ -102,7 +104,7 @@
     const FLUENCY_THRESHOLD = 0.8;
 
     // Replace with your actual deployed Google Apps Script web app URL.
-    const googleScriptUrl = "https://script.google.com/macros/s/AKfycbzhbf0UvpDlyV3IilZxIVDfD8ZhFiUSyP5HKxGMbuuUwy1qHW5qCrKormwmt5FJhUf_/exec";
+    const googleScriptUrl = "https://script.google.com/a/macros/mpsaz.org/s/AKfycbw_moBAV-4nGJFFy22t2H23iRv6XxPPcmOF0m6ioDPwqs21rLfAzPWdNCBF4vJNcLNglQ/exec";
 
     // Function to send data to Google Sheet via the Apps Script web app.
     function sendDataToGoogleSheet(studentName, sessionScore, cumulativeScore) {
@@ -127,6 +129,12 @@
       .catch(error => {
         console.error("Error sending data:", error);
       });
+    }
+
+    // Function to trigger CSV download. It simply redirects the browser
+    // to the Google Apps Script web app URL with a query parameter.
+    function downloadCSV() {
+      window.location.href = googleScriptUrl + "?action=csv";
     }
 
     // Performance object stores attempts, correct answers, and explanations for each standard.
@@ -154,6 +162,7 @@
     const answerInput = document.getElementById("answer");
     const startButton = document.getElementById("start-btn");
     const reportButton = document.getElementById("report-btn");
+    const downloadCSVButton = document.getElementById("download-csv-btn");
     const feedbackElement = document.getElementById("feedback");
     const teacherReportDiv = document.getElementById("teacher-report");
 
@@ -210,7 +219,6 @@
           currentAnswer = sum;
           questionElement.textContent = "What is " + a + " + " + b + "?";
           break;
-
         case 1: // Standard 2: Break apart 2-digit numbers.
           currentStandard = "BreakApart";
           let num1 = Math.floor(Math.random() * 80) + 10;
@@ -218,7 +226,6 @@
           currentAnswer = num1 + num2;
           questionElement.textContent = "Add " + num1 + " + " + num2 + " by breaking apart the numbers.";
           break;
-
         case 2: // Standard 3: Use compensation.
           currentStandard = "Compensation";
           let first = Math.floor(Math.random() * 80) + 10;
@@ -226,7 +233,6 @@
           currentAnswer = first + second;
           questionElement.textContent = "Add " + first + " + " + second + " using compensation.";
           break;
-
         case 3: // Standard 4: Contextual problem.
           currentStandard = "Contextual";
           let x = Math.floor(Math.random() * 80) + 10;
@@ -394,6 +400,7 @@
     // Event listeners for buttons.
     startButton.addEventListener("click", startGame);
     reportButton.addEventListener("click", generateReport);
+    downloadCSVButton.addEventListener("click", downloadCSV);
   </script>
 </body>
 </html>
